@@ -32,7 +32,7 @@ jobs:
       - name: Install remotes and rmarkdown
         run: |
           install.packages("remotes")
-          remotes::install_cran("rmarkdown")
+          remotes::install_cran(c("rmarkdown", "bookdown"))
         shell: Rscript {0}
       - name: Render Rmarkdown files
         run: |
