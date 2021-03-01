@@ -19,7 +19,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
                       fig.width = 4, fig.height = 3, fig.align = "center")
 
 if (!require(pacman)) install.packages("pacman")
-pacman::p_load(tidyverse, RecordLinkage, kableExtra, visdat)
+pacman::p_load(tidyverse, RecordLinkage, kableExtra, visdat, bookdown)
 pacman::p_load_gh("OlivierBinette/pretty")
 ```
 
