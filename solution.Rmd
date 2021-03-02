@@ -131,7 +131,7 @@ The mean level of duplication in the samples is only `r mean(duplicate_levels)`,
 
 The naive duplication estimator, taking the observed mean duplication on a sample, is highly biased here. To see why this is the case, consider the coreference matrix $C$, defined as $C = [c_{i,j}]$ with $c_{i,j} = 1$ if records $i$ and $j$ match, and $c_{i,j}=0$ otherwise. Consider the worst case scenario of sampling only two records from the whole dataset and checking if they match. This corresponds to sample an entry of $C$ at random within its lower triangular section and dividing by two to obtain the duplication level. The expectation of this estimator is $2 \ell/(n-1)$ where $n=500$ is the size of the original dataset and $\ell = 10\%$ is the level of duplication.
 
-More generally, if we sample $k$ records, this corresponds to sampling $k(k-1)/2$ entries in the lower triangular section of $C$. The expected number of duplicate in this section is then around $\ell k(k-1)/(n-1)$. While we can adjust for the factor of $k(k-1)/(n-1)$ to obtain an unbiased estimator, the result would be highly inefficient.
+More generally, if we sample $k$ records, this corresponds to sampling $k(k-1)/2$ entries in the lower triangular section of $C$. The expected number of duplicates in this section is then around $\ell k(k-1)/(n-1)$. While we can adjust for the factor of $k(k-1)/(n-1)$ to obtain an unbiased estimator, the result would be highly inefficient.
 
 We would face similar problems if trying to compute precision and recall of a proposed ER method on a subset of the data. An ER method which does not match anything would perform quite well on subsets of the data in terms of both precision and recall. However, its recall would be close to zero on the whole dataset.
 
@@ -148,13 +148,6 @@ Task 3 deals with points (1) and (2).
 
 **Solution.**
 
-This problem can be approached in many different ways. Here I propose a probability weighting approach based on blocking.
-
-That is, I use blocking in order to sample data subsets in a way which is biased towards the obtention of more duplication in the sample. I also keep track of the probability of each sample under this scheme in order to adjust for the sampling bias.
-
-The intuition is the following. Suppose we knew the true unique entity identifiers on the full data (it is known on the \texttt{RLdata500} dataset, but this wouldn't be known in practice). We could then obtain more representative samples by sampling at the *individual* level rather than sampling at the *record* level. That is, we could sample random individuals and always obtain all of their records, rather than just sampling random records. Since these individual clusters are unknown in practice, we'll rather emulate them using blocking. That is, we'll sample at the block level (sampling whole blocks or parts of blocks) rather than at the record level. 
-
-<!--To make things more precise, we'll first consider the problem of estimating the duplication level in the whole dataset using smaller samples for which ground truth is available. We'll then look at how this can be generalized to estimate the precision and recall of ER methods using such samples.-->
 
 
 
