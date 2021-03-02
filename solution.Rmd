@@ -19,7 +19,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
                       fig.width = 4, fig.height = 3, fig.align = "center")
 
 if (!require(pacman)) install.packages("pacman")
-pacman::p_load(tidyverse, RecordLinkage, kableExtra, visdat)
+pacman::p_load(tidyverse, RecordLinkage, kableExtra, visdat, cowplot, ggrepel)
 pacman::p_load_gh("OlivierBinette/pretty")
 ```
 
@@ -51,17 +51,39 @@ Next, in Figure \@ref(fig:freqdistributions) we look at the frequency distributi
 ```{r freqdistributions, fig.width=6, fig.height=5, fig.cap="Frequency distribution of main record attributes. Note that first and last names have been reordered by frequency and the x-axis corresponds to unique name index."}
 fields = c("fname_c1", "lname_c1", "by", "bm", "bd")
 
-RLdata500 %>% 
+n_labels = 5
+data = RLdata500 %>% 
   select(!!!fields) %>%
   mutate(fname_c1 = fct_infreq(fname_c1),
          lname_c1 = fct_infreq(lname_c1)) %>% 
   mutate_all(as.integer) %>% 
   pivot_longer(everything(), names_to="Field", values_to = "Value") %>% 
-  ggplot() +
-  geom_histogram(aes(x = Value), stat = "count", fill=pretty::cmap.knitr(1)) +
-  xlab("") +
-  theme_minimal() +
-  theme(panel.grid = element_blank()) +
+  add_column(labels = apply(., 1, function(x) {
+    field = x[["Field"]]; value = as.integer(x[["Value"]])
+    if ((field == "fname_c1") & (value <= n_labels)) {
+      return(levels(fct_infreq(RLdata500$fname_c1))[[value]])
+    } else if ((field == "lname_c1") & (value <= n_labels)) {
+      return(levels(fct_infreq(RLdata500$lname_c1))[[value]])
+    } else {
+      return(NA)
+    }
+  }))
+
+label_data = data %>% 
+  group_by(Value, Field) %>% 
+  summarize(label=first(labels), count = n()) %>% 
+  ungroup()
+
+ggplot(data, aes(x = Value, label = labels)) +
+  geom_histogram(stat = "count", fill=pretty::cmap.knitr(1)) +
+  ggrepel::geom_label_repel(data = label_data, 
+                   mapping = aes(x=Value, y=count, label=label), 
+                   size = 2, label.padding=0.2, min.segment.length = 0, na.rm=TRUE, 
+                   seed=1) +
+  xlab("") + 
+  cowplot::theme_minimal_hgrid(font_size = 12, font_family = "serif") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  theme(strip.text.x = element_text(family = "mono")) +
   facet_wrap(vars(Field), scales = "free")
 ```
 
@@ -87,7 +109,8 @@ vis_compare(dfA, dfB) +
                     breaks = c("same", "different"), 
                     values = adjustcolor(cmap.knitr(c(1,2)), alpha.f = 0.9), 
                     na.value = "grey") +
-  labs(y="Duplicated Records", fill="Comparison")
+  labs(y="Duplicated Records", fill="Comparison") +
+  theme(axis.text.x = element_text(family = "mono"))
 ```
 
 
