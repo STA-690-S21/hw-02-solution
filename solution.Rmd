@@ -126,8 +126,6 @@ vis_compare(dfA, dfB) +
   
 ```
 
-\newpage
-
 # Task 2
 
 *What happens if you randomly sample 10 records from the original dataset? Do this a few times and describe what happens? Is this representative of the original dataset? Explain and be specific.*
