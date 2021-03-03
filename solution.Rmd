@@ -121,7 +121,9 @@ vis_compare(dfA, dfB) +
                     values = adjustcolor(cmap.knitr(c(1,2)), alpha.f = 0.9), 
                     na.value = "grey") +
   labs(y="Duplicated Records", fill="Comparison") +
-  theme(axis.text.x = element_text(family = "mono"))
+  theme(text=element_text(family="serif"),
+        axis.text.x = element_text(family = "mono"))
+  
 ```
 
 \newpage
