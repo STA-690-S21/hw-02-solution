@@ -33,6 +33,8 @@ The goal of this homework is to investigate how "representative" samples can be 
 
 Here I consider the practical scenario where ground truth is only available for selected subsets of the data and is not available for the whole. That is, while unique entity identifiers are available for the \texttt{RLdata500} dataset, we will for the most part ignore them. They are only used as part of the exploratory data analysis and to obtain ground truth on samples of records (in practice, ground truth for small samples of records would be obtained through clerical review).
 
+Furthermore, I focus on the problem of estimating the *level of duplication* in the dataset. While this is simpler than the problem of estimating general ER performance metrics, the challenges are the same. We can view approaches for estimating the level of duplication as providing basic frameworks under which estimation techniques for other quantities could be developped.
+
 # Task 1
 
 *Start by doing an exploratory analysis of the data set. What do you find?*
@@ -180,13 +182,13 @@ Tasks 3 and 4 deal with points (1) and (2).
 
 ## Solution
 
-We first focus on the problem of estimating the level of duplication in the whole dataset (this is the unique entity estimation problem discussed in the solution to Task 2).
+Recall that we focus on the problem of estimating the level of duplication in the whole dataset (this is the unique entity estimation problem discussed in the solution to Task 2).
 
 Here I propose to use a blocking approach: given any set of blocks which partition the record space, a number of them will be sampled with probability proportional to their size. The level of duplication in the dataset is then estimated as the average $\hat \ell$ of the level of duplication within each block.
 
 **Conjecture:** If the blocking approach has recall $R$, then $\mathbb{E}[\hat \ell] = R \ell$.
 
-Note that the recall $R$ could be estimated by sampling multiple blocks, and therefore the estimator $\hat \ell$ could be recall-adjusted to be approximately unbiased. For simplicity in this solution, we will assume that the recall is sufficiently close to $1$ that this issue can be ignored.
+Note that the recall $R$ could be estimated by sampling multiple blocks, and therefore the estimator $\hat \ell$ could be recall-adjusted to be approximately unbiased.
 
 ```{r}
 blocks_last_init = substring(RLdata500$lname_c1, 1, 1)
@@ -200,7 +202,12 @@ recall <- function(block.labels, IDs) {
   # Number of positives = TP + FP
   P = sum(choose(rowSums(ct), 2)) 
   
-  return(TP/P)
+  if (P == 0) {
+    return(1)
+  }
+  else {
+    return(TP/P)
+  }
 }
 R = recall(blocks_last_init, identity.RLdata500)
 ```
@@ -278,16 +285,16 @@ In both cases our conjecture is satisfied.
 
 Recall how @Sadinle2014 used a single block to evaluate precision and recall of his proposed record linkage approach for the El Salvadorian data set. It is currently unclear if an adaptation of our approach would be preferable to Sadinle's approach. That is, the issue is to determine if sampling a single large block of size $N$ to evaluate level of duplication is preferable to sampling a larger number of blocks of size $n_1, n_2, \dots, n_k$, with $\sum_i n_i = N$, using our technique and adjusted estimators.
 
-To gain insight into this issue, consider the following experiment, which compares our approach (**method 1**) to the equivalent of Sadinle's approach (**method 2**) for the purpose of estimating the level of duplication. We block by birth day (recall is $0.8$) and sample $k=10$ blocks with probability proportional to their size, without replacement. On average, around 175 records are sampled. Under **method 1**, we compute the duplication level within each block, average those, and adjust the result using a naive recall estimator (the biased empirical recall). Under **method 2**, we simply compute the duplication level in the aggregation of all sampled blocks. This is experiment is replicated $2000$ times and properties of the estimators are shown in Table \@ref(tab:comparison).
+To gain insight into this issue, consider the following experiment, which compares our approach (**method 1**) to the equivalent of Sadinle's approach (**method 2**) for the purpose of estimating the level of duplication. We block by birth day (recall is $0.8$) and sample $k=10$ blocks with probability proportional to their size, without replacement. On average, around 175 records are sampled. Under **method 1**, we compute the duplication level within each block, average those, and adjust the result using a naive recall estimator (a simple bias-adjusted estimator). Under **method 2**, we simply compute the duplication level in the aggregation of all sampled blocks. This is experiment is replicated $5000$ times and properties of the estimators are shown in Table \@ref(tab:comparison).
 
 ```{r cache=TRUE}
 bd_blocks = RLdata500$bd
 R = recall(bd_blocks, identity.RLdata500)
 block_sizes = table(bd_blocks)
 
-reps = 2000
+reps = 5000 
 k = 10
-method1 = replicate(reps, {
+method1 = replicate(reps, { 
   I = sample(names(block_sizes), k, prob=block_sizes, replace=FALSE)
   dup_level = mean(sapply(I, function(i) {
     mean(duplicated(identity.RLdata500[bd_blocks==i]))
@@ -295,7 +302,8 @@ method1 = replicate(reps, {
   n_records = sum(bd_blocks %in% I)
   P = length(block_sizes)
   R.hat = recall(bd_blocks[bd_blocks %in% I], identity.RLdata500[bd_blocks %in% I])
-  dup_level/R.hat
+  c = ((P-1)/k) * (1-R.hat)/R.hat
+  (1+c) * dup_level
 })
 
 method2 = replicate(reps, {
@@ -310,21 +318,52 @@ data.frame(Method = c("1", "2"),
            RMSE = c(sqrt(mean((method1-0.1)^2)), sqrt(mean((method2-0.1)^2)))) %>% 
   mutate(Mean = round(Mean, 3),
          RMSE = round(RMSE, 3)) %>% 
-  kbl(caption = "Comparison of \\textbf{method 1} and \\textbf{method 2}, under birth day blocking, in terms of mean value and root mean squared error (RMSE). Here the estimand is the duplication level of $0.1$.",
+  kbl(caption = "Comparison of \\textbf{method 1} and \\textbf{method 2}, under birth day blocking and sampling $k=10$ blocks, in terms of mean value and root mean squared error (RMSE). Here the estimand is the duplication level of $0.1$.",
       align = c("c", "c", "c"),
       booktabs = TRUE, position = "h") %>%
   row_spec(0, bold=TRUE)
 ```
 
 
-**Method 1** is overall more performant, despite the fact that a naive and biased recall estimator was used in this simple experiment. It'd be interesting to see how **Method 1** can be further improved.
-
-### Estimating recall
-
-Now let's consider the problem of estimating the recall of an arbitrary entity resolution approach. This is the main bottleneck in **method 1** discussed above. Ideally we would be able to estimate recall without looking at all possible links across a set of blocks.
+**Method 1** is much less biased than **method 2**, but has a slightly higher root mean squared error. The higher variance of **method 1** is due to the estimation of the recall $R$ and the resulting ratio estimator. By regularizing the recall estimate, we can actually obtain a method which has lower RMSE than both **method 1** and **method 2**. This approach is evaluated under **method 3** in Table \@ref(tab:comparison2).
 
 
+```{r cache=TRUE} 
+method3 = replicate(reps, { 
+  I = sample(names(block_sizes), k, prob=block_sizes, replace=FALSE)
+  dup_level = mean(sapply(I, function(i) {
+    mean(duplicated(identity.RLdata500[bd_blocks==i]))
+  }))
+  n_records = sum(bd_blocks %in% I)
+  P = length(block_sizes)
+  R.hat = recall(bd_blocks[bd_blocks %in% I], identity.RLdata500[bd_blocks %in% I])
+  c = ((P-1)/k) * (1-R.hat)/R.hat # Bias adjustment for the recall estimate
+  sqrt(1+c) * dup_level
+})
+```
 
+```{r comparison2}
+data.frame(Method = c("3"), 
+           Mean = c(mean(method3)),
+           RMSE = c(sqrt(mean((method3-0.1)^2)))) %>% 
+  mutate(Mean = round(Mean, 3),
+         RMSE = round(RMSE, 3)) %>% 
+  kbl(caption = "Evaluation of \\textbf{method 3}, under birth day blocking and sampling $k=10$ blocks, in terms of mean value and root mean squared error (RMSE). Here the estimand is the duplication level of $0.1$.",
+      align = c("c", "c", "c"),
+      booktabs = TRUE, position = "h") %>%
+  row_spec(0, bold=TRUE)
+```
+
+### The issue of estimating recall
+
+The main bottleneck in **method 1** and **method 3** is estimating recall for bias adjustment. Ideally we would be able to estimate recall without looking at all possible links across a set of blocks. This would greatly increase the efficiency of the estimator in terms of the number of possible links that have to be inspected in order to obtain a precise estimate. This is not something we explore further in this homework.
+
+
+# Discussion
+
+In this homework, we considered the problem of estimating the level of duplication $\ell$ of a dataset. We proposed to use *blocking* and to do probability sampling of blocks rather than sampling records at random. Duplication level within sampled blocks was averaged in order to obtain an estimator $\hat \ell$. We observed that $\mathbb{E}[\hat \ell] = R \ell$, where $R$ is the recall of the blocking approach. In cases where $R \approx 1$, our approach therefore provides a nearly unbiased estimator of the duplication level.
+
+Using recall estimators, we also obtained recall-adjusted estimators of the duplication level (**method 1** and **method 3**). These estimators were compared to the naive approach, comparable to what was used in @Sadinle2014, of using the observed duplication level in the aggregation of the sampled blocks (**method 3**). In our experiments, it appeared that **method 1** is nearly unbiased, while **method 3** balances bias and variance for the lowest RMSE.
 
 # References
 
