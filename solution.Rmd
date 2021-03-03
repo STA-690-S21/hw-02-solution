@@ -188,7 +188,9 @@ Recall that we focus on the problem of estimating the level of duplication in th
 
 Here I propose to use a blocking approach: given any set of blocks which partition the record space, a number of them will be sampled with probability proportional to their size. The level of duplication in the dataset is then estimated as the average $\hat \ell$ of the level of duplication within each block.
 
-**Conjecture:** If the blocking approach has recall $R$, then $\mathbb{E}[\hat \ell] = R \ell$.
+**Proposition:** If the blocking approach has recall $R$, then $\mathbb{E}[\hat \ell] = R \ell$.
+
+*Proof:* Ask Olivier (it's a simple computation).
 
 Note that the recall $R$ could be estimated by sampling multiple blocks, and therefore the estimator $\hat \ell$ could be recall-adjusted to be approximately unbiased.
 
@@ -281,7 +283,7 @@ p2 = RLdata500 %>%
 cowplot::plot_grid(p1, p2, ncol=2, nrow=1, labels="AUTO")
 ```
 
-In both cases our conjecture is satisfied.
+In both cases our proposition is satisfied.
 
 ### Practical implications
 
