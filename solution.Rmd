@@ -363,7 +363,7 @@ The main bottleneck in **method 1** and **method 3** is estimating recall for bi
 
 In this homework, we considered the problem of estimating the level of duplication $\ell$ of a dataset. We proposed to use *blocking* and to do probability sampling of blocks rather than sampling records at random. Duplication level within sampled blocks was averaged in order to obtain an estimator $\hat \ell$. We observed that $\mathbb{E}[\hat \ell] = R \ell$, where $R$ is the recall of the blocking approach. In cases where $R \approx 1$, our approach therefore provides a nearly unbiased estimator of the duplication level.
 
-Using recall estimators, we also obtained recall-adjusted estimators of the duplication level (**method 1** and **method 3**). These estimators were compared to the naive approach, comparable to what was used in @Sadinle2014, of using the observed duplication level in the aggregation of the sampled blocks (**method 3**). In our experiments, it appeared that **method 1** is nearly unbiased, while **method 3** balances bias and variance for the lowest RMSE.
+Using recall estimators, we also obtained recall-adjusted estimators of the duplication level (**method 1** and **method 3**). These estimators were compared to the naive approach, comparable to what was used in @Sadinle2014, of using the observed duplication level in the aggregation of the sampled blocks (**method 2**). In our experiments, it appeared that **method 1** is nearly unbiased, while **method 3** balances bias and variance for the lowest RMSE.
 
 # References
 
