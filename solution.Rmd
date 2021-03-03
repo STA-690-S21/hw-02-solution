@@ -321,7 +321,9 @@ data.frame(Method = c("1", "2"),
 
 ### Estimating recall
 
-Now let's consider the problem of estimating the recall of an arbitrary entity resolution approach. This is the main bottleneck in **method 1** discussed above. deally we would be able to estimate recall without looking at all possible links across a set of blocks.
+Now let's consider the problem of estimating the recall of an arbitrary entity resolution approach. This is the main bottleneck in **method 1** discussed above. Ideally we would be able to estimate recall without looking at all possible links across a set of blocks.
+
+
 
 
 # References
