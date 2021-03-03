@@ -290,8 +290,6 @@ p2 = RLdata500 %>%
 cowplot::plot_grid(p1, p2, ncol=2, nrow=1, labels="AUTO")
 ```
 
-In both cases our proposition is satisfied.
-
 ### Practical implications
 
 Recall how @Sadinle2014 used a single block to evaluate precision and recall of his proposed record linkage approach for the El Salvadorian data set. It is currently unclear if an adaptation of our approach would be preferable to Sadinle's approach. That is, the issue is to determine if sampling a single large block of size $N$ to evaluate level of duplication is preferable to sampling a larger number of blocks of size $n_1, n_2, \dots, n_k$, with $\sum_i n_i = N$, using our technique and adjusted estimators.
