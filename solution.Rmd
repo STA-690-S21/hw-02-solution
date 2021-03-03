@@ -178,7 +178,7 @@ Tasks 3 and 4 deal with points (1) and (2).
 
 *Propose something that works better than random sampling and explain why this works better. Propose evaluation metrics, visualizations, etc, to support any of your claims.*
 
-## Solution 1
+## Solution
 
 We first focus on the problem of estimating the level of duplication in the whole dataset (this is the unique entity estimation problem discussed in the solution to Task 2).
 
@@ -317,46 +317,11 @@ data.frame(Method = c("1", "2"),
 ```
 
 
-**Method 1** is overall more performant, despite the fact that a naive and biased recall estimator was used in this simple experiment. Note that **method 2** is biased here. Using non-probability sampling for **method 2** does not meaningfully change the results. It'd be interesting to see how **Method 1** can be further improved.
+**Method 1** is overall more performant, despite the fact that a naive and biased recall estimator was used in this simple experiment. It'd be interesting to see how **Method 1** can be further improved.
 
-Finally, let's consider the case of the use of these methods in the context of blocking with perfect recall. In this case, it is easy to see that **method 1** will be less performant than **method 2** However, we can compare **method 2** to the alternative **method 3** where blocks are sampled at random, without considering their size. The comparison is done below in Table \@ref(tab:comparison2) when blocking on last initial and sampling again $k=10$ blocks over $5000$ repetitions.
+### Estimating recall
 
-```{r cache=TRUE}
-bd_blocks = substr(RLdata500$lname_c1, 1, 1)
-R = recall(bd_blocks, identity.RLdata500)
-block_sizes = table(bd_blocks)
-
-reps = 5000
-k = 10
-
-method2 = replicate(reps, {
-  I = sample(names(block_sizes), k, prob=block_sizes, replace=FALSE)
-  mean(duplicated(identity.RLdata500[bd_blocks %in% I]))
-})
-
-method3 = replicate(reps, {
-  I = sample(names(block_sizes), k, replace=FALSE)
-  mean(duplicated(identity.RLdata500[bd_blocks %in% I]))
-})
-```
-
-```{r comparison2}
-data.frame(Method = c("2", "3"), 
-           Mean = c(mean(method2), mean(method3)),
-           RMSE = c(sqrt(mean((method2-0.1)^2)), sqrt(mean((method3-0.1)^2)))) %>% 
-  mutate(Mean = round(Mean, 3),
-         RMSE = round(RMSE, 3)) %>% 
-  kbl(caption = "Comparison of \\textbf{method 2} and \\textbf{method 3}, under last initial blocking, in terms of mean value and root mean squared error (RMSE). Here the estimand is the duplication level of $0.1$.",
-      align = c("c", "c", "c"),
-      booktabs = TRUE, position = "h") %>%
-  row_spec(0, bold=TRUE)
-```
-
-We can observe that sampling blocks with probability proportional to their size results in a significantly lower root mean square error in this case.
-
-## Solution 2
-
-Now let's consider the problem of estimating the precision of an arbitrary entity resolution approach. Here we propose to use importance sampling of record pairs.
+Now let's consider the problem of estimating the recall of an arbitrary entity resolution approach. This is the main bottleneck in **method 1** discussed above. deally we would be able to estimate recall without looking at all possible links across a set of blocks.
 
 
 # References
