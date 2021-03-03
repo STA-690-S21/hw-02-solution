@@ -33,7 +33,7 @@ The goal of this homework is to investigate how "representative" samples can be 
 
 Here I consider the practical scenario where ground truth is only available for selected subsets of the data and is not available for the whole. That is, while unique entity identifiers are available for the \texttt{RLdata500} dataset, we will for the most part ignore them. They are only used as part of the exploratory data analysis and to obtain ground truth on samples of records (in practice, ground truth for small samples of records would be obtained through clerical review).
 
-Furthermore, I focus on the problem of estimating the *level of duplication* in the dataset. While this is simpler than the problem of estimating general ER performance metrics, the challenges are the same. We can view approaches for estimating the level of duplication as providing basic frameworks under which estimation techniques for other quantities could be developped.
+Furthermore, I focus on the problem of estimating the *level of duplication* in the dataset. While this is simpler than the problem of estimating general ER performance metrics, the main issues remain the same. We can view approaches for estimating the level of duplication as providing basic frameworks under which estimation techniques for other quantities could be developped.
 
 # Task 1
 
