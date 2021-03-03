@@ -188,12 +188,16 @@ Recall that we focus on the problem of estimating the level of duplication in th
 
 Here I propose to use a blocking approach: given any set of blocks which partition the record space, a number of them will be sampled with probability proportional to their size. The level of duplication in the dataset is then estimated as the average $\hat \ell$ of the level of duplication within each block.
 
-**Proposition:** If the blocking approach has recall $R$, then $\mathbb{E}[\hat \ell] = R \ell$.
+\begin{proposition}
+  If the blocking approach has recall $R$, then $\mathbb{E}[\hat \ell] = R \ell$.
+\end{proposition}
 
-*Proof:* Let $b_i$, $i = 1,2,\dots, p$ be the sizes of the blocks, and let $N = \sum_i b_i$ be the total number of records. Each block $b_i$ is sampled with probability $b_i/N$. Now let $D$ be the total number of duplicate records and let $d_i$ be the number of duplicates in block $i$. Since the blocking approach has recall $R$, we therefore have $\sum_i d_i = R D$. We can then compute
+\begin{proof}
+Let $b_i$, $i = 1,2,\dots, p$ be the sizes of the blocks, and let $N = \sum_i b_i$ be the total number of records. Each block $b_i$ is sampled with probability $b_i/N$. Now let $D$ be the total number of duplicate records and let $d_i$ be the number of duplicates in block $i$. Since the blocking approach has recall $R$, we have $\sum_i d_i = R D$. We can then compute
 $$
   \mathbb{E}[\hat \ell] = \sum_{i=1}^p \frac{d_i}{b_i} \frac{b_i}{N} = \frac{1}{N}\sum_{i=1}^p d_i = \frac{RD}{N} = R\ell.
 $$
+\end{proof}
 
 Note that the recall $R$ can be estimated by sampling multiple blocks, and therefore the estimator $\hat \ell$ can be recall-adjusted to be approximately unbiased.
 
