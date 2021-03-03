@@ -1,5 +1,5 @@
 ---
-title: "Using Random Samples to Evaluate ER Performance Metrics: An Example Solution to Homework 2"
+title: "Using Random Samples in Entity Resolution Applications: An Example Solution to Homework 2"
 author: "Olivier Binette"
 date: "February 25, 2020"
 header-includes: 
