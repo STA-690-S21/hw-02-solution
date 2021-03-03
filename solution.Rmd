@@ -192,7 +192,7 @@ Here I propose to use a blocking approach: given any set of blocks which partiti
 
 *Proof:* Ask Olivier (it's a simple computation).
 
-Note that the recall $R$ could be estimated by sampling multiple blocks, and therefore the estimator $\hat \ell$ could be recall-adjusted to be approximately unbiased.
+Note that the recall $R$ can be estimated by sampling multiple blocks, and therefore the estimator $\hat \ell$ can be recall-adjusted to be approximately unbiased.
 
 ```{r}
 blocks_last_init = substring(RLdata500$lname_c1, 1, 1)
