@@ -257,7 +257,7 @@ bd_blocks = RLdata500$bd
 R = recall(bd_blocks, identity.RLdata500)
 ```
 
-Next consider blocking by birth day `bm`, which has lower recall of $0.8$. Figure \@ref(fig:bdblocking) shows the results in this case. 
+Next consider blocking by birth day `bd`, which has lower recall of $0.8$. Figure \@ref(fig:bdblocking) shows the results in this case. 
 
 ```{r bdblocking, fig.width=6, fig.height=3, fig.cap="Panel \\textbf{A}: Duplication level within each block for birth day blocking. The horizontal black line represents the expected value of $\\hat \\ell$ and the coïnciding dotted green line represents the value $R \\ell$. Panel \\textbf{B}: Scatter plot of block size and duplication level, with a linear regression line and $95\\%$ confidence band."}
 p1 = RLdata500 %>% 
@@ -290,7 +290,7 @@ cowplot::plot_grid(p1, p2, ncol=2, nrow=1, labels="AUTO")
 
 ### Practical implications
 
-Recall how @Sadinle2014 used a single block to evaluate precision and recall of his proposed record linkage approach for the El Salvadorian data set. It is currently unclear if an adaptation of our approach would be preferable to Sadinle's approach. That is, the issue is to determine if sampling a single large block of size $N$ to evaluate level of duplication is preferable to sampling a larger number of blocks of size $n_1, n_2, \dots, n_k$, with $\sum_i n_i = N$, using our technique and adjusted estimators.
+Recall how @Sadinle2014 used a single block to evaluate precision and recall of his proposed record linkage approach for the El Salvadorian data set. It is currently unclear if an adaptation of our approach would be preferable to Sadinle's approach. That is, the issue is to determine if sampling a single large block of size $N$ to evaluate performance is preferable to sampling a larger number of blocks of size $n_1, n_2, \dots, n_k$, with $\sum_i n_i = N$, using our technique and adjusted estimators.
 
 To gain insight into this issue, consider the following experiment, which compares our approach (**method 1**) to the equivalent of Sadinle's approach (**method 2**) for the purpose of estimating the level of duplication. We block by birth day (recall is $0.8$) and sample $k=10$ blocks with probability proportional to their size, without replacement. On average, around 175 records are sampled. Under **method 1**, we compute the duplication level within each block, average those, and adjust the result using a naive recall estimator (a simple bias-adjusted estimator). Under **method 2**, we simply compute the duplication level in the aggregation of all sampled blocks. This is experiment is replicated $5000$ times and properties of the estimators are shown in Table \@ref(tab:comparison).
 
