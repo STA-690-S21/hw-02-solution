@@ -32,9 +32,9 @@ jobs:
       - name: Install remotes and rmarkdown
         run: |
           install.packages("remotes")
-          remotes::install_cran("rmarkdown")
+          remotes::install_cran(c("rmarkdown", "bookdown"))
         shell: Rscript {0}
       - name: Render Rmarkdown files
         run: |
           RMD_PATH=($(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '[.]Rmd$'))
-          Rscript -e 'files=commandArgs(TRUE); files=files[file.exists(files)]; cat("Attempting to render the following files: ", files, "\n"); for (f in files) rmarkdown::render(f)' ${RMD_PATH[*]}
+          Rscript -e 'files=commandArgs(TRUE); files=files[file.exists(files)]; cat("Attempting to render the following files: ", files, "\n"); for (f in files) rmarkdown::render(f, run_pandoc=FALSE)' ${RMD_PATH[*]}

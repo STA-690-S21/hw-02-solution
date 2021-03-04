@@ -1,0 +1,436 @@
+---
+title: "Using Random Samples in Entity Resolution Applications: An Example Solution to Homework 2"
+author: "Olivier Binette"
+date: "February 25, 2020"
+header-includes: 
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{floatrow}
+  - \usepackage{natbib}
+  - \floatsetup[table]{capposition=bottom}
+  - \usepackage[justification=centering]{caption}
+  - \captionsetup{width=6in}
+bibliography: biblio.bib
+link-citations: yes
+linkcolor: blue
+output: 
+  bookdown::pdf_document2:
+    toc: false
+    number_sections: false
+---
+
+```{r setup, message = FALSE, echo=FALSE}
+set.seed(1)
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE,
+  fig.width = 4, fig.height = 3, fig.align = "center"
+)
+
+if (!require(pacman)) install.packages("pacman")
+pacman::p_load(tidyverse, RecordLinkage, kableExtra, visdat, cowplot, ggrepel)
+pacman::p_load_gh("OlivierBinette/pretty")
+```
+
+The goal of this homework is to investigate how "representative" samples can be obtained in the context of entity resolution, for the purpose of evaluating ER performance metrics. The four tasks of the homework use the \texttt{RLdata500} dataset to walk us through an exploration of the issue, the proposal of a solution, and its evaluation.
+
+Here I consider the practical scenario where ground truth is only available for selected subsets of the data and is not available for the whole. That is, while unique entity identifiers are available for the \texttt{RLdata500} dataset, we will for the most part ignore them. They are only used as part of the exploratory data analysis and to obtain ground truth on samples of records (in practice, ground truth for small samples of records would be obtained through clerical review).
+
+Furthermore, I focus on the problem of estimating the *level of duplication* in the dataset. While this is simpler than the problem of estimating general ER performance metrics, the main issues remain the same. We can view approaches for estimating the level of duplication as providing basic frameworks under which estimation techniques for other quantities could be developped.
+
+# Task 1
+
+*Start by doing an exploratory analysis of the data set. What do you find?*
+
+## Solution
+
+Table \@ref(tab:RLdata) shows the structure of the `RLdata500` dataset and its first few rows, when sorted by last name.
+
+```{r RLdata}
+RLdata500 %>%
+  arrange(lname_c1) %>%
+  head(5) %>%
+  kbl(
+    caption = "First five rows of the \\texttt{RLdata500} dataset when sorted by last 
+        name.",
+    booktabs = TRUE, position = "h"
+  ) %>%
+  add_header_above(
+    header = c("First name" = 2, "Last name" = 2, "Birth date" = 3),
+    bold = TRUE
+  ) %>%
+  row_spec(0, monospace = TRUE)
+```
+
+The first and last names are each separated in two components. Birth year, month, and day are separately recorded.
+
+In Figure \@ref(fig:freqdistributions), we look at the frequency distribution of the first and last names (first components only) and of the birth date fields. Note that there are no missing values among these attributes. As for secondary name components, only `r sum(!is.na(RLdata500$fname_c2))` records have a second first name, and only `r sum(!is.na(RLdata500$lname_c2))` records have a second last name.
+
+```{r freqdistributions, fig.width=6, fig.height=5, fig.cap="Frequency distribution of main record attributes. Note that first and last names have been reordered by frequency and the x-axis corresponds to unique name index."}
+fields <- c("fname_c1", "lname_c1", "by", "bm", "bd")
+n_labels <- 5 # Number of most prevalent names to explicitely label
+
+data <- RLdata500 %>%
+  select(!!!fields) %>%
+  # Sort names by frequency of occurence
+  mutate(
+    fname_c1 = fct_infreq(fname_c1),
+    lname_c1 = fct_infreq(lname_c1)
+  ) %>%
+  # Get integer indices
+  mutate_all(as.integer) %>%
+  # Put data in long 2-columns format
+  pivot_longer(everything(), names_to = "Field", values_to = "Value") %>%
+  # Create labeling column for the n_labels most frequent names
+  add_column(labels = apply(., 1, function(x) {
+    field <- x[["Field"]]
+    value <- as.integer(x[["Value"]])
+    if ((field == "fname_c1") & (value <= n_labels)) {
+      return(levels(fct_infreq(RLdata500$fname_c1))[[value]])
+    } else if ((field == "lname_c1") & (value <= n_labels)) {
+      return(levels(fct_infreq(RLdata500$lname_c1))[[value]])
+    } else {
+      return(NA)
+    }
+  }))
+
+label_data <- data %>%
+  group_by(Value, Field) %>%
+  summarize(label = first(labels), count = n()) %>%
+  ungroup()
+
+ggplot(data, aes(x = Value, label = labels)) +
+  geom_histogram(stat = "count", fill = pretty::cmap.knitr(1)) +
+  ggrepel::geom_label_repel(
+    data = label_data,
+    mapping = aes(x = Value, y = count, label = label),
+    size = 2, label.padding = 0.2, min.segment.length = 0, na.rm = TRUE,
+    seed = 1
+  ) +
+  xlab("") +
+  cowplot::theme_minimal_hgrid(font_size = 12, font_family = "serif") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  theme(strip.text.x = element_text(family = "mono")) +
+  facet_wrap(vars(Field), scales = "free")
+```
+
+The birth day `bd` and birth month `bm` seem roughly uniformly distributed, while birth year `by` is more concentrated around 1960. An erroneous birth year of 2062 is listed on one of the record. We can observe more duplication among last names than among first names. First name may therefore be more discriminative of distinct individuals than last name, assuming comparable error levels.
+
+Finally, we visualize the differences between duplicated records using the `visdat` package. Recall that `RLdata500` contains 50 duplicated records, each with a corresponding original. Figure \@ref(fig:duplicated) illustrates the differences between original and duplicated records.
+
+```{r duplicated, fig.cap="Visualization of the differences between the 50 original records that have been duplicated and slightly modified in the \\texttt{RLdata500} dataset. Each row represent one of the duplicated record. Each column indicates whether the duplicated record matches its original version in the given field. Observe that each duplicated record differs from its original by exactly one attribute."}
+# Duplicated records
+dup_records <- which(duplicated(identity.RLdata500))
+
+# Original records
+dup_IDs <- identity.RLdata500[dup_records]
+original_IDs <- sapply(dup_IDs, function(i) {
+  which(identity.RLdata500 == i)[[1]]
+})
+
+dfA <- RLdata500[original_IDs, ]
+dfB <- RLdata500[dup_records, ]
+
+vis_compare(dfA, dfB) +
+  scale_fill_manual(
+    limits = c("same", "different"),
+    breaks = c("same", "different"),
+    values = adjustcolor(cmap.knitr(c(1, 2)), alpha.f = 0.9),
+    na.value = "grey"
+  ) +
+  labs(y = "Duplicated Records", fill = "Comparison") +
+  theme(
+    text = element_text(family = "serif"),
+    axis.text.x = element_text(family = "mono")
+  )
+```
+
+# Task 2
+
+*What happens if you randomly sample 10 records from the original dataset? Do this a few times and describe what happens? Is this representative of the original dataset? Explain and be specific.*
+
+## Solution
+
+Let's first sample 10 records from the original dataset and take a look at the result in Table \@ref(tab:randomrows).
+
+```{r randomrows}
+RLdata500 %>%
+  add_column(ID = identity.RLdata500) %>%
+  arrange(rnorm(1:nrow(.))) %>%
+  head(10) %>%
+  kbl(
+    caption = "Ten random rows from the \\texttt{RLdata500} dataset with unique identifiers.",
+    booktabs = TRUE, position = "h"
+  ) %>%
+  add_header_above(
+    header = c("First name" = 2, "Last name" = 2, "Birth date" = 3, " " = 1),
+    bold = TRUE
+  ) %>%
+  row_spec(0, monospace = TRUE)
+```
+
+In comparison to the full dataset, there is no duplicated record in this sample. Furthermore, there is no duplicate first name, no duplicate last name, no duplicate birth year, and no duplicate birth day. This particular sample therefore provides little to no useful information regarding the level of duplication in the data or regarding the distribution of the attributes.
+
+Now supposed we wished to estimate the precentage of duplicate records, or *level of duplication*, in the whole dataset using such random samples. This problem of estimating the number of duplicate records is also called *unique entity estimation* [@Chen2018]; the goal is to estimate the number of unique entities represented in the dataset.
+
+Would the percentage of duplication in random samples be representative of duplicate in the whole? Figure \@ref(fig:duplicationExperiment) shows the distribution of the duplication level in 100,000 random samples of size 10 and compares it to the level of duplication in the whole dataset ($10\%$).
+
+```{r duplicationExperiment, fig.cap="Histogram of duplication levels in 100,000 random samples of size 10 from the \\texttt{RLdata500} dataset.", fig.width=3, fig.height=2, cache=TRUE}
+k <- 10
+duplicate_levels <- replicate(n = 100000, expr = {
+  I <- sample(1:nrow(RLdata500), k)
+  sum(duplicated(identity.RLdata500[I])) / k
+})
+
+par(mar = c(3, 3, 1, 1))
+hist(duplicate_levels, xlab = "Duplication level", alpha = 1)
+```
+
+The mean level of duplication in the samples is only around `r round(mean(duplicate_levels), 3)`, far from the target $10\%$.
+
+The naive duplication estimator, taking the observed mean duplication of a random sample, is **highly biased** here. To see why this is the case, consider the coreference matrix $C$, defined as $C = [c_{i,j}]$ with $c_{i,j} = 1$ if records $i$ and $j$ match, and $c_{i,j}=0$ otherwise. If we sample $k$ records, this corresponds to sampling $k(k-1)/2$ entries in the lower triangular section of $C$. The expected number of duplicates in this section is then around $\ell k(k-1)/(n-1)$. While we can adjust for the factor of $k(k-1)/(n-1)$ to obtain an unbiased estimator, the result would be highly inefficient (see @Raj1961, Section 3, for a proof of unbiasedness and a computation of the variance of this estimator).
+
+We would face similar problems if trying to compute precision and recall of a proposed ER method on a subset of the data. An ER method which does not match anything would perform quite well on subsets of the data in terms of both precision and recall. However, its recall would be close to zero on the whole dataset.
+
+There is therefore a need to both:
+
+1.  account for the unrepresentativeness of record samples in ER applications (such as by using adjustment factors to obtain unbiased estimators), and
+2.  propose ways to obtain more representative samples (as to improve the efficiency of estimators).
+
+Tasks 3 and 4 deal with points (1) and (2).
+
+# Tasks 3 and 4
+
+*Propose something that works better than random sampling and explain why this works better. Propose evaluation metrics, visualizations, etc, to support any of your claims.*
+
+## Solution
+
+Recall that we focus on the problem of estimating the level of duplication in the whole dataset (this is the unique entity estimation problem discussed in the solution to Task 2).
+
+Here I propose to use a blocking approach: given any set of blocks which partition the record space, a number of them will be sampled with probability proportional to their size. The level of duplication in the dataset is then estimated as the average $\hat \ell$ of the level of duplication within each block.
+
+\begin{proposition}
+  If the blocking approach has recall $R$, then $\mathbb{E}[\hat \ell] = R \ell$.
+\end{proposition}
+
+\begin{proof}
+Let $b_i$, $i = 1,2,\dots, p$ be the sizes of the blocks, and let $N = \sum_i b_i$ be the total number of records. Each block $i$ is sampled with probability $b_i/N$. Now let $D$ be the total number of duplicate records and let $d_i$ be the number of duplicates in block $i$. Since the blocking approach has recall $R$, we have $\sum_i d_i = R D$. We can then compute
+$$
+  \mathbb{E}[\hat \ell] = \sum_{i=1}^p \frac{d_i}{b_i} \frac{b_i}{N} = \frac{1}{N}\sum_{i=1}^p d_i = \frac{RD}{N} = R\ell.
+$$
+\end{proof}
+
+Note that the recall $R$ can be estimated by sampling multiple blocks, and therefore the estimator $\hat \ell$ can be recall-adjusted to be approximately unbiased.
+
+```{r}
+blocks_last_init <- substring(RLdata500$lname_c1, 1, 1)
+
+recall <- function(block.labels, IDs) {
+  ct <- xtabs(~ IDs + block.labels)
+
+  # Number of true positives
+  TP <- sum(choose(ct, 2))
+
+  # Number of positives = TP + FP
+  P <- sum(choose(rowSums(ct), 2))
+
+  if (P == 0) {
+    return(1)
+  }
+  else {
+    return(TP / P)
+  }
+}
+R <- recall(blocks_last_init, identity.RLdata500)
+```
+
+To illustrate this approach, consider blocking by the first letter of the last name. This blocking approach has perfect recall $R=1$. In Figure \@ref(fig:lastinitblocking), we illustrate the duplication level within each block, as well as the expectation of $\hat \ell$ and the value $R \ell$.
+
+```{r lastinitblocking, fig.width=6, fig.height=3, fig.cap="Panel \\textbf{A}: Duplication level within each block for last name initial blocking. The horizontal black line represents the expected value of $\\hat \\ell$ and the coïnciding dotted green line represents the value $R \\ell$. Panel \\textbf{B}: Scatter plot of block size and duplication level, with a linear regression line and $95\\%$ confidence band."}
+p1 <- RLdata500 %>%
+  mutate(
+    `Last initial` = blocks_last_init,
+    ID = identity.RLdata500
+  ) %>%
+  group_by(`Last initial`) %>%
+  summarize(
+    "Duplication level" = mean(duplicated(ID)),
+    "Block size" = n()
+  ) %>%
+  ggplot(aes(x = `Last initial`, y = `Duplication level`)) +
+  geom_bar(stat = "identity", fill = pretty::cmap.knitr(1)) +
+  geom_hline(aes(yintercept = sum(`Duplication level` * `Block size`) / sum(`Block size`)), color = "black") +
+  geom_hline(yintercept = R / 10, color = "green", linetype = 2) +
+  cowplot::theme_minimal_hgrid(font_size = 12, font_family = "serif") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05)))
+
+p2 <- RLdata500 %>%
+  mutate(
+    `Last initial` = blocks_last_init,
+    ID = identity.RLdata500
+  ) %>%
+  group_by(`Last initial`) %>%
+  summarize(
+    "Duplication level" = mean(duplicated(ID)),
+    "Block size" = n()
+  ) %>%
+  ggplot(aes(x = `Block size`, y = `Duplication level`)) +
+  geom_smooth(method = "lm", color = "black", size = 0.5) +
+  geom_point(color = pretty::cmap.knitr(1), alpha = 0.8) +
+  coord_cartesian(ylim = c(0, 0.5)) +
+  cowplot::theme_minimal_hgrid(font_size = 12, font_family = "serif")
+
+cowplot::plot_grid(p1, p2, ncol = 2, nrow = 1, labels = "AUTO")
+```
+
+```{r}
+bd_blocks <- RLdata500$bd
+R <- recall(bd_blocks, identity.RLdata500)
+```
+
+Next consider blocking by birth day `bd`, which has lower recall of $0.8$. Figure \@ref(fig:bdblocking) shows the results in this case. 
+
+```{r bdblocking, fig.width=6, fig.height=3, fig.cap="Panel \\textbf{A}: Duplication level within each block for birth day blocking. The horizontal black line represents the expected value of $\\hat \\ell$ and the coïnciding dotted green line represents the value $R \\ell$. Panel \\textbf{B}: Scatter plot of block size and duplication level, with a linear regression line and $95\\%$ confidence band."}
+p1 <- RLdata500 %>%
+  mutate(
+    `Birth day` = bd_blocks,
+    ID = identity.RLdata500
+  ) %>%
+  group_by(`Birth day`) %>%
+  summarize(
+    "Duplication level" = mean(duplicated(ID)),
+    "Block size" = n()
+  ) %>%
+  ggplot(aes(x = `Birth day`, y = `Duplication level`)) +
+  geom_bar(stat = "identity", fill = pretty::cmap.knitr(1)) +
+  geom_hline(aes(yintercept = sum(`Duplication level` * `Block size`) / sum(`Block size`)), color = "black") +
+  geom_hline(yintercept = R / 10, color = "green", linetype = 2) +
+  cowplot::theme_minimal_hgrid(font_size = 12, font_family = "serif") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05)))
+
+p2 <- RLdata500 %>%
+  mutate(
+    `Birth day` = bd_blocks,
+    ID = identity.RLdata500
+  ) %>%
+  group_by(`Birth day`) %>%
+  summarize(
+    "Duplication level" = mean(duplicated(ID)),
+    "Block size" = n()
+  ) %>%
+  ggplot(aes(x = `Block size`, y = `Duplication level`)) +
+  geom_smooth(method = "lm", color = "black", size = 0.5) +
+  geom_point(color = pretty::cmap.knitr(1), alpha = 0.8) +
+  coord_cartesian(ylim = c(0, 0.5)) +
+  cowplot::theme_minimal_hgrid(font_size = 12, font_family = "serif")
+
+cowplot::plot_grid(p1, p2, ncol = 2, nrow = 1, labels = "AUTO")
+```
+
+### Practical implications
+
+Recall how @Sadinle2014 used a single block to evaluate precision and recall of his proposed record linkage approach for the El Salvadorian data set. It is currently unclear if an adaptation of our approach would be preferable to Sadinle's approach. That is, the issue is to determine if sampling a single large block of size $N$ to evaluate performance is preferable to sampling a larger number of blocks of size $n_1, n_2, \dots, n_k$, with $\sum_i n_i = N$, using our technique and adjusted estimators.
+
+To gain insight into this issue, consider the following experiment, which compares our approach (**method 1**) to the equivalent of Sadinle's approach (**method 2**) for the purpose of estimating the level of duplication. We block by birth day (recall is $0.8$) and sample $k=10$ blocks with probability proportional to their size, without replacement. On average, around 175 records are sampled. Under **method 1**, we compute the duplication level within each block, average those, and adjust the result using a naive recall estimator (a simple bias-adjusted estimator). Under **method 2**, we simply compute the duplication level in the aggregation of all sampled blocks. This is experiment is replicated $5000$ times and properties of the estimators are shown in Table \@ref(tab:comparison).
+
+```{r cache=TRUE}
+bd_blocks <- RLdata500$bd
+R <- recall(bd_blocks, identity.RLdata500)
+block_sizes <- table(bd_blocks)
+
+reps <- 5000
+k <- 10
+method1 <- replicate(reps, {
+  I <- sample(names(block_sizes), k, prob = block_sizes, replace = FALSE)
+
+  # Block-wise duplication level
+  dup_level <- mean(sapply(I, function(i) {
+    mean(duplicated(identity.RLdata500[bd_blocks == i]))
+  }))
+  P <- length(block_sizes)
+
+  # Naive recall estimator
+  R.hat <- recall(bd_blocks[bd_blocks %in% I], identity.RLdata500[bd_blocks %in% I])
+
+  # Bias-adjusted recall estimator
+  R.hat.adj <- 1 / (1 + ((P - 1) / k) * (1 - R.hat) / R.hat)
+  dup_level / R.hat.adj
+})
+
+method2 <- replicate(reps, {
+  I <- sample(names(block_sizes), k, prob = block_sizes, replace = FALSE)
+  mean(duplicated(identity.RLdata500[bd_blocks %in% I]))
+})
+```
+
+```{r comparison}
+data.frame(
+  Method = c("1", "2"),
+  Mean = c(mean(method1), mean(method2)),
+  RMSE = c(sqrt(mean((method1 - 0.1)^2)), sqrt(mean((method2 - 0.1)^2)))
+) %>%
+  mutate(
+    Mean = round(Mean, 3),
+    RMSE = round(RMSE, 3)
+  ) %>%
+  kbl(
+    caption = "Comparison of \\textbf{method 1} and \\textbf{method 2}, under birth day blocking and sampling $k=10$ blocks, in terms of mean value and root mean squared error (RMSE). Here the estimand is the duplication level of $0.1$.",
+    align = c("c", "c", "c"),
+    booktabs = TRUE, position = "h"
+  ) %>%
+  row_spec(0, bold = TRUE)
+
+```
+
+
+**Method 1** is much less biased than **method 2**, but has a slightly higher root mean squared error. The higher variance of **method 1** is due to the estimation of the recall $R$ and the resulting ratio estimator. By regularizing the recall estimate, we can actually obtain a method which has lower RMSE than both **method 1** and **method 2**. This approach is evaluated under **method 3** in Table \@ref(tab:comparison2).
+
+
+```{r cache=TRUE} 
+method3 <- replicate(reps, {
+  I <- sample(names(block_sizes), k, prob = block_sizes, replace = FALSE)
+  dup_level <- mean(sapply(I, function(i) {
+    mean(duplicated(identity.RLdata500[bd_blocks == i]))
+  }))
+  P <- length(block_sizes)
+
+  # Naive recall estimator
+  R.hat <- recall(bd_blocks[bd_blocks %in% I], identity.RLdata500[bd_blocks %in% I])
+
+  # Bias-adjusted recall estimator
+  R.hat.adj <- 1 / (1 + ((P - 1) / k) * (1 - R.hat) / R.hat)
+
+  # Square root for regularization (good enough)
+  dup_level / sqrt(R.hat.adj)
+})
+```
+
+```{r comparison2}
+data.frame(
+  Method = c("3"),
+  Mean = c(mean(method3)),
+  RMSE = c(sqrt(mean((method3 - 0.1)^2)))
+) %>%
+  mutate(
+    Mean = round(Mean, 3),
+    RMSE = round(RMSE, 3)
+  ) %>%
+  kbl(
+    caption = "Evaluation of \\textbf{method 3}, under birth day blocking and sampling $k=10$ blocks, in terms of mean value and root mean squared error (RMSE). Here the estimand is the duplication level of $0.1$.",
+    align = c("c", "c", "c"),
+    booktabs = TRUE, position = "h"
+  ) %>%
+  row_spec(0, bold = TRUE)
+```
+
+### The issue of estimating recall
+
+The main bottleneck in **method 1** and **method 3** is estimating recall for bias adjustment. Ideally we would be able to estimate recall without looking at all possible links across a set of blocks. This would greatly increase the efficiency of the estimator in terms of the number of possible links that have to be inspected in order to obtain a precise estimate. This is not something we explore further in this homework.
+
+
+# Discussion
+
+In this homework, we considered the problem of estimating the level of duplication $\ell$ of a dataset. We proposed to use *blocking* and to do probability sampling of blocks rather than sampling records at random. Duplication level within sampled blocks was averaged in order to obtain an estimator $\hat \ell$. We observed that $\mathbb{E}[\hat \ell] = R \ell$, where $R$ is the recall of the blocking approach. In cases where $R \approx 1$, our approach therefore provides a nearly unbiased estimator of the duplication level.
+
+Using recall estimators, we also obtained recall-adjusted estimators of the duplication level (**method 1** and **method 3**). These estimators were compared to the naive approach, comparable to what was used in @Sadinle2014, of using the observed duplication level in the aggregation of the sampled blocks (**method 2**). In our experiments, it appeared that **method 1** is nearly unbiased, while **method 3** balances bias and variance for the lowest RMSE.
+
+# References
